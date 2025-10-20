@@ -1,0 +1,91 @@
+package crypto.block.cipher.des;
+
+import crypto.block.cipher.BlockCipher;
+import crypto.block.pad.Padder;
+import crypto.block.utils.BitUtil;
+
+import java.util.Arrays;
+
+public class DesBlockCipher implements BlockCipher {
+    private final DesKeyGenerator keyGenerator;
+    private final Padder padder;
+
+    public DesBlockCipher(byte[] key, Padder padder) {
+        assert key.length == 8;
+        this.padder = padder;
+        this.keyGenerator = new DesKeyGenerator(key);
+    }
+
+    public byte[] encrypt(byte[] data) {
+        byte[] padded = padder.pad(data, 8);
+        byte[] out = new byte[padded.length];
+        for (int i = 0; i < padded.length; i += 8) {
+            byte[] group = Arrays.copyOfRange(padded, i, i + 8);
+            byte[] cipherText = encryptBlock(group);
+            System.arraycopy(cipherText, 0, out, i, 8);
+        }
+        return out;
+    }
+
+    public byte[] decrypt(byte[] data) {
+        assert data.length % 8 == 0;
+        byte[] out = new byte[data.length];
+        for (int i = 0; i < data.length; i += 8) {
+            byte[] group = Arrays.copyOfRange(data, i, i + 8);
+            byte[] plainText = decryptGroup(group);
+            System.arraycopy(plainText, 0, out, i, 8);
+        }
+        return padder.unpad(out,8);
+    }
+
+
+    @Override
+    public byte[] encryptBlock(byte[] data) {
+        assert data.length == 8;
+        // 初始置换 64b -> 64b
+        byte[] block = BitUtil.permute(data, PermutationTables.IP);
+
+        // 分割为左右部分 64b -> 2 * 32b
+        byte[] left = Arrays.copyOfRange(block, 0, 4);
+        byte[] right = Arrays.copyOfRange(block, 4, 8);
+
+        // 16轮迭代
+        for (int i = 0; i < 16; i++) {
+            byte[] temp = right.clone();
+            // feistel操作
+            byte[] f = DesFunction.feistel(right, keyGenerator.getRoundKey(i));
+
+            right = BitUtil.xor(left, f);
+            left = temp;
+        }
+        // 最后一轮不交换
+        byte[] lr = new byte[8];
+        System.arraycopy(left, 0, lr, 0, 4);
+        System.arraycopy(right, 0, lr, 4, 4);
+        // 逆初始置换 64b -> 64b
+        return BitUtil.permute(lr, PermutationTables.INV_IP);
+    }
+
+    @Override
+    public byte[] decryptBlock(byte[] data) {
+        assert data.length == 8;
+        // 初始置换 64b -> 64b
+        byte[] block = BitUtil.permute(data, PermutationTables.IP);
+        // 分割为左右部分 64b -> 2 * 32b
+        byte[] left = Arrays.copyOfRange(block, 0, 4);
+        byte[] right = Arrays.copyOfRange(block, 4, 8);
+
+        // 16轮迭代
+        for (int i = 15; i >= 0; i--) {
+            byte[] temp = left.clone();
+            byte[] f = DesFunction.feistel(left, keyGenerator.getRoundKey(i));
+            left = BitUtil.xor(right, f);
+            right = temp;
+        }
+
+        byte[] lr = new byte[8];
+        System.arraycopy(left, 0, lr, 0, 4);
+        System.arraycopy(right, 0, lr, 4, 4);
+        return BitUtil.permute(lr, PermutationTables.INV_IP);
+    }
+}

@@ -1,0 +1,51 @@
+package crypto.block.mode;
+
+import crypto.block.cipher.BlockCipher;
+import crypto.block.utils.BitUtil;
+
+import java.util.Arrays;
+
+public class CBCMode implements BlockCipherMode {
+
+    @Override
+    public byte[] encrypt(byte[] data, BlockCipher cipher, byte[] iv) {
+        int size = cipher.getBlockSize();
+        if (iv == null || iv.length != size) {
+            throw new IllegalArgumentException("iv length must be " + size + " bytes");
+        }
+        byte[] out = new byte[data.length];
+        byte[] c = iv.clone();
+
+        for (int i = 0; i < data.length; i += size) {
+            byte[] block = Arrays.copyOfRange(data, i, i + size);
+            byte[] xored = BitUtil.xor(block, c);
+            byte[] encryptedBlock = cipher.encryptBlock(xored);
+
+            c = encryptedBlock.clone();
+            System.arraycopy(encryptedBlock, 0, out, i, size);
+        }
+
+        return out;
+    }
+
+    @Override
+    public byte[] decrypt(byte[] data, BlockCipher cipher, byte[] iv) {
+        int size = cipher.getBlockSize();
+        if (iv == null || iv.length != size) {
+            throw new IllegalArgumentException("iv length must be " + size + " bytes");
+        }
+        byte[] out = new byte[data.length];
+        byte[] c = iv.clone();
+
+        for (int i = 0; i < data.length; i += size) {
+            byte[] block = Arrays.copyOfRange(data, i, i + size);
+            byte[] decryptedBlock = cipher.decryptBlock(block);
+            byte[] xored = BitUtil.xor(decryptedBlock, c);
+
+            c = block.clone();
+            System.arraycopy(xored, 0, out, i, size);
+        }
+
+        return out;
+    }
+}

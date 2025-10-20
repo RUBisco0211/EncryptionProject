@@ -1,0 +1,70 @@
+package crypto.block.cipher.des;
+
+import crypto.block.utils.BitUtil;
+
+class DESKeyGenerator {
+    // 每轮移位次数
+    private final int[] SHIFTS = {1, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1};
+    // 16轮迭代，每个子密钥为48位
+    private final byte[][] roundKeys = new byte[16][6];
+
+    /**
+     * @param key 64b
+     */
+    public DESKeyGenerator(byte[] key) {
+        generate(key);
+    }
+
+    public byte[] getRoundKey(int round) {
+        return roundKeys[round];
+    }
+
+    private void generate(byte[] key) {
+        // PC1置换 64b -> 56b
+        byte[] permutedKey = BitUtil.permute(key, PermutationTables.PC_1);
+
+        // 分割为左右两段 56b -> 2 * 28b，
+        // 28b 小于int能存储的最大值，可以用int存，方便循环左移实现
+        int c = 0, d = 0;
+        for (int i = 0; i < 28; i++) {
+            c = (c << 1) | BitUtil.getBit(permutedKey, i);
+            d = (d << 1) | BitUtil.getBit(permutedKey, i + 28);
+        }
+
+        // 16轮迭代，生成子密钥
+        for (int round = 0; round < 16; round++) {
+            // 循环左移
+            c = leftShift28(c, SHIFTS[round]);
+            d = leftShift28(d, SHIFTS[round]);
+
+            // 拼接cd 2 * 28b -> 56b
+            byte[] cd = new byte[7];
+            // c放到高位，d放到低位
+            for (int i = 0; i < 28; i++) {
+                int bit = (c >>> (27 - i)) & 0x01;
+                BitUtil.setBit(cd, i, bit);
+            }
+            for (int i = 0; i < 28; i++) {
+                int bit = (d >>> (27 - i)) & 0x01;
+                BitUtil.setBit(cd, i + 28, bit);
+            }
+            // PC2置换 56b -> 48b
+            byte[] roundKey = BitUtil.permute(cd, PermutationTables.PC_2);
+            System.arraycopy(roundKey, 0, roundKeys[round], 0, 6);
+        }
+    }
+
+    /**
+     * 循环左移函数
+     *
+     * @param num   待移位值 28b
+     * @param shift 移位位数
+     * @return 28b
+     */
+    private int leftShift28(int num, int shift) {
+        // 左移后仅保留低28位，>>> 无符号右移，高位补0
+        return (num << shift) & 0x0fffffff | (num >>> (28 - shift));
+    }
+
+
+}
