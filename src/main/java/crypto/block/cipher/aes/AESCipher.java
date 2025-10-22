@@ -4,19 +4,16 @@ import crypto.block.cipher.BlockCipher;
 import crypto.block.utils.BitUtil;
 
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Map;
 
 public class AESCipher implements BlockCipher {
 
     private static final int BLOCK_SIZE = 16;
-    private static final Map<Integer, Integer> AES_KEY_ROUND_MAP = new HashMap<>();
-
-    static {
-        AES_KEY_ROUND_MAP.put(128, 10);
-        AES_KEY_ROUND_MAP.put(192, 12);
-        AES_KEY_ROUND_MAP.put(256, 14);
-    }
+    private static final Map<Integer, Integer> AES_KEY_ROUND_MAP = Map.ofEntries(
+            Map.entry(128, 10),
+            Map.entry(192, 12),
+            Map.entry(256, 14)
+    );
 
     private final int keyLength; // in bit
     private final int rounds;
